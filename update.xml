@@ -18,7 +18,7 @@
 		<maintainer>HKweb</maintainer>
 		<maintainerurl>https://hkweb.nl</maintainerurl>
 		<section>Updates</section>
-		<targetplatform name="joomla" version="5\.[0-9]" />
+		<targetplatform name="joomla" version="6\.[0-9]" />
 		<php_minimum>8.3.0</php_minimum>
 	</update>
 </updates>

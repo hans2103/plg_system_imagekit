@@ -15,7 +15,7 @@ Joomla 5 system plugin that serves local images through the [ImageKit.io](https:
 
 ## Requirements
 
-- Joomla 5.x
+- Joomla 6.x
 - PHP 8.3+
 - `ext-curl` (standard on all hosting)
 - An [ImageKit.io](https://imagekit.io) account
