@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<extension type="plugin" group="system" method="upgrade">
+    <name>PLG_SYSTEM_IMAGEKIT</name>
+    <author>Hans Kuijpers</author>
+    <authorEmail>hans2103@gmail.com</authorEmail>
+    <creationDate>February 2026</creationDate>
+    <copyright>(C) 2026 Hans Kuijpers. All rights reserved.</copyright>
+    <license>GNU General Public License version 2 or later; see LICENSE.txt</license>
+    <version>1.0.0</version>
+    <description>PLG_SYSTEM_IMAGEKIT_XML_DESCRIPTION</description>
+
+    <namespace path="src">Hans2103\Plugin\System\ImageKit</namespace>
+
+    <files>
+        <filename plugin="imagekit">imagekit.php</filename>
+        <folder>services</folder>
+        <folder>src</folder>
+        <folder>language</folder>
+    </files>
+
+    <languages>
+        <language tag="en-GB">language/en-GB/plg_system_imagekit.ini</language>
+        <language tag="en-GB">language/en-GB/plg_system_imagekit.sys.ini</language>
+    </languages>
+
+    <config>
+        <fields name="params">
+
+            <!-- ============================================================
+                 Connection
+                 ============================================================ -->
+            <fieldset name="basic" label="PLG_SYSTEM_IMAGEKIT_FIELDSET_BASIC">
+
+                <field
+                    name="url_endpoint"
+                    type="url"
+                    label="PLG_SYSTEM_IMAGEKIT_URL_ENDPOINT_LABEL"
+                    description="PLG_SYSTEM_IMAGEKIT_URL_ENDPOINT_DESC"
+                    default="https://ik.imagekit.io/momentsuntil"
+                    filter="url"
+                    required="true"
+                    size="60"
+                />
+
+                <field
+                    name="public_key"
+                    type="text"
+                    label="PLG_SYSTEM_IMAGEKIT_PUBLIC_KEY_LABEL"
+                    description="PLG_SYSTEM_IMAGEKIT_PUBLIC_KEY_DESC"
+                    default=""
+                    size="60"
+                />
+
+                <field
+                    name="private_key"
+                    type="password"
+                    label="PLG_SYSTEM_IMAGEKIT_PRIVATE_KEY_LABEL"
+                    description="PLG_SYSTEM_IMAGEKIT_PRIVATE_KEY_DESC"
+                    default=""
+                    size="60"
+                />
+
+            </fieldset>
+
+            <!-- ============================================================
+                 Default image settings
+                 ============================================================ -->
+            <fieldset name="transform" label="PLG_SYSTEM_IMAGEKIT_FIELDSET_TRANSFORM">
+
+                <field
+                    name="quality"
+                    type="number"
+                    label="PLG_SYSTEM_IMAGEKIT_QUALITY_LABEL"
+                    description="PLG_SYSTEM_IMAGEKIT_QUALITY_DESC"
+                    default="80"
+                    min="1"
+                    max="100"
+                    step="1"
+                    filter="integer"
+                />
+
+                <field
+                    name="srcset_widths"
+                    type="text"
+                    label="PLG_SYSTEM_IMAGEKIT_SRCSET_WIDTHS_LABEL"
+                    description="PLG_SYSTEM_IMAGEKIT_SRCSET_WIDTHS_DESC"
+                    default="320,480,768,1024,1280,1600"
+                    filter="string"
+                    size="40"
+                />
+
+                <field
+                    name="default_sizes"
+                    type="text"
+                    label="PLG_SYSTEM_IMAGEKIT_DEFAULT_SIZES_LABEL"
+                    description="PLG_SYSTEM_IMAGEKIT_DEFAULT_SIZES_DESC"
+                    default="100vw"
+                    filter="string"
+                    size="60"
+                />
+
+            </fieldset>
+
+            <!-- ============================================================
+                 Per-image overrides & CSS backgrounds
+                 ============================================================ -->
+            <fieldset name="usage" label="PLG_SYSTEM_IMAGEKIT_FIELDSET_USAGE">
+
+                <field
+                    name="note_srcset_override"
+                    type="note"
+                    label="PLG_SYSTEM_IMAGEKIT_NOTE_SRCSET_OVERRIDE_LABEL"
+                    description="PLG_SYSTEM_IMAGEKIT_NOTE_SRCSET_OVERRIDE_DESC"
+                    class="alert alert-info"
+                />
+
+                <field
+                    name="note_sizes_override"
+                    type="note"
+                    label="PLG_SYSTEM_IMAGEKIT_NOTE_SIZES_OVERRIDE_LABEL"
+                    description="PLG_SYSTEM_IMAGEKIT_NOTE_SIZES_OVERRIDE_DESC"
+                    class="alert alert-info"
+                />
+
+                <field
+                    name="note_css_bg"
+                    type="note"
+                    label="PLG_SYSTEM_IMAGEKIT_NOTE_CSS_BG_LABEL"
+                    description="PLG_SYSTEM_IMAGEKIT_NOTE_CSS_BG_DESC"
+                    class="alert alert-info"
+                />
+
+            </fieldset>
+
+        </fields>
+    </config>
+</extension>

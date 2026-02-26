@@ -1,0 +1,117 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get tag name
+        id: tag
+        run: |
+          TAG_WITH_V=${GITHUB_REF#refs/tags/}
+          TAG_WITHOUT_V=${TAG_WITH_V#v}
+          echo "tag=$TAG_WITHOUT_V" >> $GITHUB_OUTPUT
+          echo "tag_with_v=$TAG_WITH_V" >> $GITHUB_OUTPUT
+
+      - name: Create plugin package
+        run: |
+          mkdir -p build
+          zip -r build/plg_system_imagekit_v${{ steps.tag.outputs.tag }}.zip \
+            imagekit.php \
+            imagekit.xml \
+            services/ \
+            src/ \
+            language/ \
+            -x "*.git*" "*.DS_Store"
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          VERSION=${{ steps.tag.outputs.tag }}
+
+          # Try to extract the section for this version from CHANGELOG.md
+          START=$(grep -n "## \[${VERSION}\]" CHANGELOG.md | cut -d: -f1)
+
+          if [ -n "$START" ]; then
+            END=$(tail -n +$((START + 1)) CHANGELOG.md | grep -n "^## \[" | head -1 | cut -d: -f1)
+            if [ -z "$END" ]; then
+              tail -n +$((START + 1)) CHANGELOG.md > RELEASE_NOTES.md
+            else
+              head -n $((START + END - 1)) CHANGELOG.md | tail -n +$((START + 1)) > RELEASE_NOTES.md
+            fi
+          else
+            # Fallback: generate from git log since previous tag
+            echo "## Changes in v${VERSION}" > RELEASE_NOTES.md
+            echo "" >> RELEASE_NOTES.md
+
+            PREVIOUS_TAG=$(git describe --abbrev=0 --tags $(git rev-list --tags --skip=1 --max-count=1) 2>/dev/null || echo "")
+
+            if [ -n "$PREVIOUS_TAG" ]; then
+              echo "### Commits since ${PREVIOUS_TAG}" >> RELEASE_NOTES.md
+              echo "" >> RELEASE_NOTES.md
+              git log ${PREVIOUS_TAG}..${{ steps.tag.outputs.tag_with_v }} --pretty=format:"- %s (%h)" >> RELEASE_NOTES.md
+            else
+              echo "### Initial release" >> RELEASE_NOTES.md
+              echo "" >> RELEASE_NOTES.md
+              git log --pretty=format:"- %s (%h)" >> RELEASE_NOTES.md
+            fi
+          fi
+
+          echo "" >> RELEASE_NOTES.md
+          echo "" >> RELEASE_NOTES.md
+          echo "## Installation" >> RELEASE_NOTES.md
+          echo "" >> RELEASE_NOTES.md
+          echo "1. Download \`plg_system_imagekit_v${{ steps.tag.outputs.tag }}.zip\` below" >> RELEASE_NOTES.md
+          echo "2. In Joomla administrator go to **System → Extensions → Install**" >> RELEASE_NOTES.md
+          echo "3. Upload and install the ZIP" >> RELEASE_NOTES.md
+          echo "4. Enable the plugin under **System → Plugins**" >> RELEASE_NOTES.md
+          echo "5. Enter your ImageKit URL endpoint and API keys in the plugin settings" >> RELEASE_NOTES.md
+          echo "" >> RELEASE_NOTES.md
+          echo "For full documentation see the [README](https://github.com/hans2103/plg_system_imagekit#readme)" >> RELEASE_NOTES.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag_with_v }}
+          name: Release v${{ steps.tag.outputs.tag }}
+          body_path: RELEASE_NOTES.md
+          files: |
+            build/plg_system_imagekit_v${{ steps.tag.outputs.tag }}.zip
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Checkout main branch
+        run: |
+          git fetch origin main
+          git checkout main
+
+      - name: Update update.xml
+        run: |
+          # Update version number (first occurrence only)
+          sed -i "0,/<version>/s|<version>.*</version>|<version>${{ steps.tag.outputs.tag }}</version>|" update.xml
+
+          # Update download URL (first occurrence only)
+          sed -i "0,/downloadurl/s|releases/download/v[^/]*/plg_system_imagekit_v[^<]*|releases/download/v${{ steps.tag.outputs.tag }}/plg_system_imagekit_v${{ steps.tag.outputs.tag }}.zip|" update.xml
+
+      - name: Commit and push update.xml
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add update.xml
+          git commit -m ":bookmark: update update.xml for version ${{ steps.tag.outputs.tag }}" || echo "No changes to commit"
+          git push origin main || echo "No changes to push"
