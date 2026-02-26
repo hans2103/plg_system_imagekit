@@ -1,6 +1,6 @@
 # System - ImageKit
 
-Joomla 5 system plugin that serves local images through the [ImageKit.io](https://imagekit.io) CDN with automatic `srcset`, WebP/AVIF conversion, and quality optimisation.
+Joomla 6 system plugin that serves local images through the [ImageKit.io](https://imagekit.io) CDN with automatic `srcset`, WebP/AVIF conversion, and quality optimisation.
 
 ## Features
 
