@@ -6,7 +6,7 @@
     <creationDate>February 2026</creationDate>
     <copyright>(C) 2026 Hans Kuijpers. All rights reserved.</copyright>
     <license>GNU General Public License version 2 or later; see LICENSE.txt</license>
-    <version>26.10.01</version>
+    <version>26.10.02</version>
     <compatibleversions>
         <version type="platform">6.*</version>
     </compatibleversions>
@@ -25,6 +25,10 @@
         <language tag="en-GB">language/en-GB/plg_system_imagekit.ini</language>
         <language tag="en-GB">language/en-GB/plg_system_imagekit.sys.ini</language>
     </languages>
+
+    <updateservers>
+        <server type="extension" name="System - ImageKit">https://raw.githubusercontent.com/hans2103/plg_system_imagekit/main/update.xml</server>
+    </updateservers>
 
     <config>
         <fields name="params">
