@@ -101,6 +101,11 @@ final class ImageKit extends CMSPlugin implements SubscriberInterface, Dispatche
 
         $app = $event->getApplication();
 
+        // Only process frontend requests.
+        if (!$app->isClient('site')) {
+            return;
+        }
+
         // Only process HTML documents.
         if ($app->getDocument()->getType() !== 'html') {
             return;

@@ -6,7 +6,7 @@
     <creationDate>February 2026</creationDate>
     <copyright>(C) 2026 Hans Kuijpers. All rights reserved.</copyright>
     <license>GNU General Public License version 2 or later; see LICENSE.txt</license>
-    <version>26.09.01</version>
+    <version>26.10.01</version>
     <compatibleversions>
         <version type="platform">6.*</version>
     </compatibleversions>
