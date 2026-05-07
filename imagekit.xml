@@ -6,7 +6,7 @@
     <creationDate>February 2026</creationDate>
     <copyright>(C) 2026 Hans Kuijpers. All rights reserved.</copyright>
     <license>GNU General Public License version 2 or later; see LICENSE.txt</license>
-    <version>26.10.02</version>
+    <version>26.19.02</version>
     <compatibleversions>
         <version type="platform">6.*</version>
     </compatibleversions>
@@ -31,7 +31,7 @@
     </updateservers>
 
     <config>
-        <fields name="params">
+        <fields name="params" addfieldprefix="Hans2103\Plugin\System\ImageKit\Field">
 
             <!-- ============================================================
                  Connection
@@ -106,6 +106,127 @@
                     size="60"
                 />
 
+                <field
+                    name="extra_transformations"
+                    type="text"
+                    label="PLG_SYSTEM_IMAGEKIT_EXTRA_TRANSFORMATIONS_LABEL"
+                    description="PLG_SYSTEM_IMAGEKIT_EXTRA_TRANSFORMATIONS_DESC"
+                    default=""
+                    filter="string"
+                    size="60"
+                />
+
+                <field
+                    name="strip_size_suffix"
+                    type="radio"
+                    layout="joomla.form.field.radio.switcher"
+                    label="PLG_SYSTEM_IMAGEKIT_STRIP_SIZE_SUFFIX_LABEL"
+                    description="PLG_SYSTEM_IMAGEKIT_STRIP_SIZE_SUFFIX_DESC"
+                    default="0"
+                    filter="integer"
+                >
+                    <option value="0">JNO</option>
+                    <option value="1">JYES</option>
+                </field>
+
+            </fieldset>
+
+            <!-- ============================================================
+                 Delivery toggles
+                 ============================================================ -->
+            <fieldset name="delivery" label="PLG_SYSTEM_IMAGEKIT_FIELDSET_DELIVERY">
+
+                <field
+                    name="enable_image_delivery"
+                    type="radio"
+                    layout="joomla.form.field.radio.switcher"
+                    label="PLG_SYSTEM_IMAGEKIT_ENABLE_IMAGE_DELIVERY_LABEL"
+                    description="PLG_SYSTEM_IMAGEKIT_ENABLE_IMAGE_DELIVERY_DESC"
+                    default="1"
+                    filter="integer"
+                >
+                    <option value="0">JNO</option>
+                    <option value="1">JYES</option>
+                </field>
+
+                <field
+                    name="enable_video_delivery"
+                    type="radio"
+                    layout="joomla.form.field.radio.switcher"
+                    label="PLG_SYSTEM_IMAGEKIT_ENABLE_VIDEO_DELIVERY_LABEL"
+                    description="PLG_SYSTEM_IMAGEKIT_ENABLE_VIDEO_DELIVERY_DESC"
+                    default="0"
+                    filter="integer"
+                >
+                    <option value="0">JNO</option>
+                    <option value="1">JYES</option>
+                </field>
+
+                <field
+                    name="reject_paths"
+                    type="textarea"
+                    label="PLG_SYSTEM_IMAGEKIT_REJECT_PATHS_LABEL"
+                    description="PLG_SYSTEM_IMAGEKIT_REJECT_PATHS_DESC"
+                    default=""
+                    filter="raw"
+                    rows="6"
+                    cols="60"
+                />
+
+            </fieldset>
+
+            <!-- ============================================================
+                 Asset (CSS / JS / fonts) delivery
+                 ============================================================ -->
+            <fieldset name="assets" label="PLG_SYSTEM_IMAGEKIT_FIELDSET_ASSETS">
+
+                <field
+                    name="note_assets_intro"
+                    type="note"
+                    label="PLG_SYSTEM_IMAGEKIT_NOTE_ASSETS_INTRO_LABEL"
+                    description="PLG_SYSTEM_IMAGEKIT_NOTE_ASSETS_INTRO_DESC"
+                    class="alert alert-warning"
+                />
+
+                <field
+                    name="enable_template_assets"
+                    type="radio"
+                    layout="joomla.form.field.radio.switcher"
+                    label="PLG_SYSTEM_IMAGEKIT_ENABLE_TEMPLATE_ASSETS_LABEL"
+                    description="PLG_SYSTEM_IMAGEKIT_ENABLE_TEMPLATE_ASSETS_DESC"
+                    default="0"
+                    filter="integer"
+                >
+                    <option value="0">JNO</option>
+                    <option value="1">JYES</option>
+                </field>
+
+                <field
+                    name="enable_extension_assets"
+                    type="radio"
+                    layout="joomla.form.field.radio.switcher"
+                    label="PLG_SYSTEM_IMAGEKIT_ENABLE_EXTENSION_ASSETS_LABEL"
+                    description="PLG_SYSTEM_IMAGEKIT_ENABLE_EXTENSION_ASSETS_DESC"
+                    default="0"
+                    filter="integer"
+                >
+                    <option value="0">JNO</option>
+                    <option value="1">JYES</option>
+                </field>
+
+                <field
+                    name="enable_core_assets"
+                    type="radio"
+                    layout="joomla.form.field.radio.switcher"
+                    label="PLG_SYSTEM_IMAGEKIT_ENABLE_CORE_ASSETS_LABEL"
+                    description="PLG_SYSTEM_IMAGEKIT_ENABLE_CORE_ASSETS_DESC"
+                    default="0"
+                    filter="integer"
+                >
+                    <option value="0">JNO</option>
+                    <option value="1">JYES</option>
+                </field>
+
             </fieldset>
 
             <!-- ============================================================
@@ -130,11 +251,32 @@
                 />
 
                 <field
+                    name="note_skip_attr"
+                    type="note"
+                    label="PLG_SYSTEM_IMAGEKIT_NOTE_SKIP_ATTR_LABEL"
+                    description="PLG_SYSTEM_IMAGEKIT_NOTE_SKIP_ATTR_DESC"
+                    class="alert alert-info"
+                />
+
+                <field
                     name="note_css_bg"
                     type="note"
                     label="PLG_SYSTEM_IMAGEKIT_NOTE_CSS_BG_LABEL"
                     description="PLG_SYSTEM_IMAGEKIT_NOTE_CSS_BG_DESC"
                     class="alert alert-info"
+                />
+
+            </fieldset>
+
+            <!-- ============================================================
+                 System status / diagnostics
+                 ============================================================ -->
+            <fieldset name="status" label="PLG_SYSTEM_IMAGEKIT_FIELDSET_STATUS">
+
+                <field
+                    name="status_panel"
+                    type="status"
+                    label=""
                 />
 
             </fieldset>

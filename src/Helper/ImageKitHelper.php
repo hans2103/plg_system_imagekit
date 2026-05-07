@@ -9,6 +9,8 @@
  * @license     GNU General Public License version 2 or later; see LICENSE.txt
  */
 
+declare(strict_types=1);
+
 namespace Hans2103\Plugin\System\ImageKit\Helper;
 
 // phpcs:disable PSR1.Files.SideEffects
@@ -19,7 +21,6 @@ namespace Hans2103\Plugin\System\ImageKit\Helper;
  * Lightweight ImageKit.io helper using PHP's built-in curl.
  *
  * No external dependencies — no SDK, no Guzzle, no Composer required.
- * Ships as plain PHP inside the plugin.
  *
  * URL-building methods need no API keys.
  * Management methods (upload, listFiles, deleteFile, getSignedUrl) require
@@ -47,6 +48,12 @@ final class ImageKitHelper
     /** @var string Default value for the HTML sizes attribute */
     private static string $defaultSizes = '100vw';
 
+    /** @var string[] Extra ImageKit transformation tokens appended after w/q/f-auto, e.g. ['pr-true', 'c-at_max'] */
+    private static array $extraTransformations = [];
+
+    /** @var string[] Compiled regex patterns derived from the user's reject list */
+    private static array $rejectRegex = [];
+
     /** @var string ImageKit Upload API endpoint */
     private const UPLOAD_ENDPOINT = 'https://upload.imagekit.io/api/v2/files/upload';
 
@@ -55,15 +62,6 @@ final class ImageKitHelper
 
     /**
      * Configure the helper. Called once by the plugin's event handler.
-     *
-     * @param   string  $urlEndpoint   ImageKit URL endpoint.
-     * @param   string  $publicKey     Public API key.
-     * @param   string  $privateKey    Private API key (required for uploads / signed URLs).
-     * @param   int     $quality       Output quality (1–100).
-     * @param   string  $srcsetWidths  Comma-separated pixel widths for srcset.
-     * @param   string  $defaultSizes  Default value for the HTML sizes attribute.
-     *
-     * @return  void
      *
      * @since   1.0.0
      */
@@ -74,23 +72,34 @@ final class ImageKitHelper
         int $quality = 80,
         string $srcsetWidths = '320,480,768,1024,1280,1600',
         string $defaultSizes = '100vw',
+        string $extraTransformations = '',
+        string $rejectPaths = '',
     ): void {
         self::$urlEndpoint  = rtrim($urlEndpoint, '/');
         self::$publicKey    = $publicKey;
         self::$privateKey   = $privateKey;
         self::$quality      = max(1, min(100, $quality));
-        self::$defaultSizes = $defaultSizes ?: '100vw';
+        self::$defaultSizes = $defaultSizes !== '' ? $defaultSizes : '100vw';
 
-        $parsed = array_values(
+        $widths = array_values(
             array_filter(
                 array_map('intval', array_map('trim', explode(',', $srcsetWidths)))
             )
         );
 
-        if (!empty($parsed)) {
-            sort($parsed);
-            self::$srcsetWidths = $parsed;
+        if (!empty($widths)) {
+            sort($widths);
+            self::$srcsetWidths = $widths;
         }
+
+        self::$extraTransformations = array_values(
+            array_filter(
+                array_map('trim', explode(',', $extraTransformations)),
+                static fn (string $t): bool => $t !== '',
+            )
+        );
+
+        self::$rejectRegex = self::compileRejectPatterns($rejectPaths);
     }
 
     // -------------------------------------------------------------------------
@@ -98,38 +107,32 @@ final class ImageKitHelper
     // -------------------------------------------------------------------------
 
     /**
-     * Build a single ImageKit transformation URL.
+     * Build a single ImageKit transformation URL for an image.
      *
-     * URL format: {endpoint}/tr:w-{width},q-{quality},f-auto/{path}
+     * URL format: {endpoint}/tr:w-{width},q-{quality},f-auto[,extra][,perCall]/{path}
      *
-     * ImageKit transformation parameters used:
-     *   w      width in pixels; height auto-scales to preserve aspect ratio
-     *   q      output quality (1–100)
-     *   f-auto ImageKit picks the best format (WebP / AVIF) per browser Accept header
-     *
-     * @param   string    $imagePath  Path relative to site root (e.g. images/photo.jpg).
-     * @param   int       $width      Target width in pixels.
-     * @param   int|null  $quality    Override quality; null falls back to configured default.
-     *
-     * @return  string
+     * @param  string[]  $extraTokens  Per-call transformation tokens (e.g. ['h-200']).
+     *                                 Appended after the configured global extras.
      *
      * @since   1.0.0
      */
-    public static function buildUrl(string $imagePath, int $width, ?int $quality = null): string
+    public static function buildUrl(string $imagePath, int $width, ?int $quality = null, array $extraTokens = []): string
     {
         $q    = $quality !== null ? max(1, min(100, $quality)) : self::$quality;
         $path = ltrim($imagePath, '/');
 
-        return self::$urlEndpoint . '/tr:w-' . $width . ',q-' . $q . ',f-auto/' . $path;
+        $perCall = array_values(array_filter(
+            $extraTokens,
+            static fn ($t): bool => \is_string($t) && $t !== '',
+        ));
+
+        $tokens = ['w-' . $width, 'q-' . $q, 'f-auto', ...self::$extraTransformations, ...$perCall];
+
+        return self::$urlEndpoint . '/tr:' . implode(',', $tokens) . '/' . $path;
     }
 
     /**
-     * Build an ImageKit URL with an arbitrary transformation string.
-     *
-     * @param   string  $imagePath       Path relative to site root.
-     * @param   string  $transformation  Raw transformation string (e.g. "w-800,h-600,cm-pad_extract").
-     *
-     * @return  string
+     * Build an ImageKit URL with an arbitrary transformation string (escape hatch).
      *
      * @since   1.0.0
      */
@@ -141,58 +144,114 @@ final class ImageKitHelper
     }
 
     /**
-     * Build a complete srcset string.
+     * Build a complete srcset string for an image.
      *
-     * @param   string    $imagePath  Path relative to site root.
-     * @param   int|null  $quality    Override quality; null uses the configured default.
-     * @param   int[]|null $widths    Override width set; null uses the configured default.
-     *                                Useful for per-image breakpoints (hero vs thumbnail).
-     *
-     * @return  string  Ready to use as the srcset attribute value.
+     * @param   int[]|null   $widths       Override width set; null falls back to the configured default.
+     * @param   string[]     $extraTokens  Per-call transformation tokens applied to every variant.
      *
      * @since   1.0.0
      */
-    public static function buildSrcset(string $imagePath, ?int $quality = null, ?array $widths = null): string
+    public static function buildSrcset(string $imagePath, ?int $quality = null, ?array $widths = null, array $extraTokens = []): string
     {
-        $parts      = [];
         $widthsToUse = ($widths !== null && !empty($widths)) ? $widths : self::$srcsetWidths;
 
+        $parts = [];
+
         foreach ($widthsToUse as $w) {
-            $parts[] = self::buildUrl($imagePath, $w, $quality) . ' ' . $w . 'w';
+            $parts[] = self::buildUrl($imagePath, $w, $quality, $extraTokens) . ' ' . $w . 'w';
         }
 
         return implode(', ', $parts);
+    }
+
+    /**
+     * Build a passthrough proxy URL for a non-image asset (CSS, JS, font, …).
+     *
+     * Format: {endpoint}/{path}[?query] — no /tr:.../ segment.
+     *
+     * Requires ImageKit's web-proxy origin to be configured to fetch from your site.
+     *
+     * @since   2.0.0
+     */
+    public static function buildAssetUrl(string $path, string $query = ''): string
+    {
+        $url = self::$urlEndpoint . '/' . ltrim($path, '/');
+
+        return $query !== '' ? $url . '?' . ltrim($query, '?') : $url;
+    }
+
+    /**
+     * Test a path against the configured reject list.
+     *
+     * Patterns are glob-style:
+     *   *   matches any sequence (excluding /)
+     *   **  matches any sequence (including /)
+     *   ?   matches any single character
+     *
+     * @since   2.0.0
+     */
+    public static function isRejected(string $path): bool
+    {
+        if (self::$rejectRegex === []) {
+            return false;
+        }
+
+        $needle = ltrim($path, '/');
+
+        foreach (self::$rejectRegex as $regex) {
+            if (preg_match($regex, $needle) === 1) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     // -------------------------------------------------------------------------
     // Accessors
     // -------------------------------------------------------------------------
 
-    /**
-     * @return  string
-     * @since   1.0.0
-     */
     public static function getUrlEndpoint(): string
     {
         return self::$urlEndpoint;
     }
 
-    /**
-     * @return  int[]
-     * @since   1.0.0
-     */
+    /** @return int[] */
     public static function getSrcsetWidths(): array
     {
         return self::$srcsetWidths;
     }
 
-    /**
-     * @return  string
-     * @since   1.0.0
-     */
     public static function getDefaultSizes(): string
     {
         return self::$defaultSizes;
+    }
+
+    public static function getQuality(): int
+    {
+        return self::$quality;
+    }
+
+    /** @return string[] */
+    public static function getExtraTransformations(): array
+    {
+        return self::$extraTransformations;
+    }
+
+    /** @return int Number of compiled reject patterns. */
+    public static function getRejectPatternCount(): int
+    {
+        return \count(self::$rejectRegex);
+    }
+
+    public static function hasPrivateKey(): bool
+    {
+        return self::$privateKey !== '';
+    }
+
+    public static function hasPublicKey(): bool
+    {
+        return self::$publicKey !== '';
     }
 
     // -------------------------------------------------------------------------
@@ -202,11 +261,7 @@ final class ImageKitHelper
     /**
      * Upload a local file to ImageKit.
      *
-     * @param   string  $filePath   Absolute local path to the file.
-     * @param   string  $fileName   Desired file name on ImageKit.
-     * @param   string  $folder     Target folder on ImageKit (default: /).
-     *
-     * @return  array  Decoded API response ({fileId, name, url, …}).
+     * @return  array<string, mixed>  Decoded API response ({fileId, name, url, …}).
      *
      * @throws  \RuntimeException  On API or curl error.
      *
@@ -216,24 +271,26 @@ final class ImageKitHelper
     {
         self::requireKeys();
 
+        $contents = @file_get_contents($filePath);
+
+        if ($contents === false) {
+            throw new \RuntimeException('ImageKit upload: could not read file at ' . $filePath);
+        }
+
         $payload = [
-            'file'              => base64_encode(\file_get_contents($filePath)),
+            'file'              => base64_encode($contents),
             'fileName'          => $fileName,
             'folder'            => $folder,
             'useUniqueFileName' => 'true',
         ];
 
-        return self::request('POST', self::UPLOAD_ENDPOINT, $payload, true);
+        return self::request('POST', self::UPLOAD_ENDPOINT, $payload, multipart: true);
     }
 
     /**
      * Upload a remote URL to ImageKit.
      *
-     * @param   string  $url       Public URL of the source image.
-     * @param   string  $fileName  Desired file name on ImageKit.
-     * @param   string  $folder    Target folder on ImageKit (default: /).
-     *
-     * @return  array  Decoded API response.
+     * @return  array<string, mixed>  Decoded API response.
      *
      * @throws  \RuntimeException  On API or curl error.
      *
@@ -250,15 +307,15 @@ final class ImageKitHelper
             'useUniqueFileName' => 'true',
         ];
 
-        return self::request('POST', self::UPLOAD_ENDPOINT, $payload, true);
+        return self::request('POST', self::UPLOAD_ENDPOINT, $payload, multipart: true);
     }
 
     /**
      * List files in the ImageKit Media Library.
      *
-     * @param   array  $options  Query parameters (e.g. ['path' => '/', 'limit' => 20, 'skip' => 0]).
+     * @param   array<string, scalar>  $options  Query parameters (e.g. ['path' => '/', 'limit' => 20]).
      *
-     * @return  array  Array of file objects.
+     * @return  array<int, array<string, mixed>>  Array of file objects.
      *
      * @throws  \RuntimeException  On API or curl error.
      *
@@ -280,9 +337,7 @@ final class ImageKitHelper
     /**
      * Get details of a single file.
      *
-     * @param   string  $fileId  ImageKit file ID.
-     *
-     * @return  array  File detail object.
+     * @return  array<string, mixed>  File detail object.
      *
      * @throws  \RuntimeException  On API or curl error.
      *
@@ -298,10 +353,6 @@ final class ImageKitHelper
     /**
      * Delete a file from the ImageKit Media Library.
      *
-     * @param   string  $fileId  ImageKit file ID.
-     *
-     * @return  bool  True on success.
-     *
      * @throws  \RuntimeException  On API or curl error.
      *
      * @since   1.0.0
@@ -316,13 +367,7 @@ final class ImageKitHelper
     }
 
     /**
-     * Generate a signed URL (for private / access-controlled images).
-     *
-     * @param   string  $imagePath     Image path on ImageKit (e.g. /images/photo.jpg).
-     * @param   string  $transformation  Transformation string (e.g. "w-800,q-80").
-     * @param   int     $expireSeconds   Seconds until the signed URL expires.
-     *
-     * @return  string  Signed URL.
+     * Generate a signed URL for private / access-controlled images.
      *
      * @since   1.0.0
      */
@@ -333,9 +378,9 @@ final class ImageKitHelper
     ): string {
         self::requireKeys();
 
-        $expiry    = time() + $expireSeconds;
-        $path      = ltrim($imagePath, '/');
-        $urlPath   = $transformation !== ''
+        $expiry  = time() + $expireSeconds;
+        $path    = ltrim($imagePath, '/');
+        $urlPath = $transformation !== ''
             ? '/tr:' . $transformation . '/' . $path
             : '/' . $path;
 
@@ -350,18 +395,76 @@ final class ImageKitHelper
     // -------------------------------------------------------------------------
 
     /**
+     * Compile a newline-delimited reject list into anchored PCRE patterns.
+     *
+     * Lines starting with `#` and blank lines are ignored.
+     *
+     * @return  string[]
+     */
+    private static function compileRejectPatterns(string $rejectPaths): array
+    {
+        $regex = [];
+
+        foreach (preg_split('/\r\n|\r|\n/', $rejectPaths) ?: [] as $line) {
+            $pattern = trim($line);
+
+            if ($pattern === '' || str_starts_with($pattern, '#')) {
+                continue;
+            }
+
+            $regex[] = '~^' . self::globToRegex(ltrim($pattern, '/')) . '$~i';
+        }
+
+        return $regex;
+    }
+
+    /**
+     * Convert a simple glob pattern into a PCRE fragment (no delimiters/anchors).
+     *
+     * Supports `**`, `*`, `?`. Everything else is escaped.
+     */
+    private static function globToRegex(string $glob): string
+    {
+        $out = '';
+        $i   = 0;
+        $len = \strlen($glob);
+
+        while ($i < $len) {
+            $char = $glob[$i];
+
+            if ($char === '*') {
+                if ($i + 1 < $len && $glob[$i + 1] === '*') {
+                    $out .= '.*';
+                    $i  += 2;
+                    continue;
+                }
+
+                $out .= '[^/]*';
+                $i++;
+                continue;
+            }
+
+            if ($char === '?') {
+                $out .= '[^/]';
+                $i++;
+                continue;
+            }
+
+            $out .= preg_quote($char, '~');
+            $i++;
+        }
+
+        return $out;
+    }
+
+    /**
      * Make an API request using curl.
      *
-     * @param   string  $method      HTTP method (GET, POST, DELETE).
-     * @param   string  $url         Full request URL.
-     * @param   array   $payload     Request body for POST requests.
-     * @param   bool    $multipart   Send as multipart/form-data instead of JSON.
+     * @param   array<string, mixed>  $payload  Request body for POST requests.
      *
-     * @return  array  Decoded JSON response body.
+     * @return  array<string, mixed>|array<int, array<string, mixed>>  Decoded JSON response body.
      *
      * @throws  \RuntimeException  On curl error or non-2xx HTTP status.
-     *
-     * @since   1.0.0
      */
     private static function request(
         string $method,
@@ -371,7 +474,6 @@ final class ImageKitHelper
     ): array {
         $ch = curl_init();
 
-        // Basic auth: private_key as username, empty password
         curl_setopt($ch, CURLOPT_URL, $url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_USERPWD, self::$privateKey . ':');
@@ -383,10 +485,9 @@ final class ImageKitHelper
             curl_setopt($ch, CURLOPT_POST, true);
 
             if ($multipart) {
-                // Upload endpoint expects multipart/form-data
                 curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
             } else {
-                $headers[]  = 'Content-Type: application/json';
+                $headers[] = 'Content-Type: application/json';
                 curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
             }
         } elseif ($method === 'DELETE') {
@@ -407,7 +508,7 @@ final class ImageKitHelper
 
         if ($httpCode < 200 || $httpCode >= 300) {
             throw new \RuntimeException(
-                'ImageKit API error (HTTP ' . $httpCode . '): ' . $body
+                'ImageKit API error (HTTP ' . $httpCode . '): ' . (\is_string($body) ? $body : '')
             );
         }
 
@@ -421,17 +522,13 @@ final class ImageKitHelper
             throw new \RuntimeException('ImageKit API: invalid JSON response — ' . $body);
         }
 
-        return $decoded ?? [];
+        return \is_array($decoded) ? $decoded : [];
     }
 
     /**
      * Assert that API keys are configured before making an API call.
      *
-     * @return  void
-     *
      * @throws  \LogicException  If the private key is not set.
-     *
-     * @since   1.0.0
      */
     private static function requireKeys(): void
     {
